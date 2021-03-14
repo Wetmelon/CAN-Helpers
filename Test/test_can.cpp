@@ -7,7 +7,8 @@
 
 #include "../can_helpers.hpp"
 
-enum InputMode {
+enum InputMode
+{
     INPUT_MODE_INACTIVE,
     INPUT_MODE_PASSTHROUGH,
     INPUT_MODE_VEL_RAMP,
@@ -16,8 +17,10 @@ enum InputMode {
     INPUT_MODE_TRAP_TRAJ,
 };
 
-TEST_SUITE("CAN Functions") {
-    TEST_CASE("reverse") {
+TEST_SUITE("CAN Functions")
+{
+    TEST_CASE("reverse")
+    {
         can_Message_t rxmsg;
         rxmsg.id = 0x000;
         rxmsg.is_extended_id = false;
@@ -32,7 +35,8 @@ TEST_SUITE("CAN Functions") {
         CHECK(rxmsg.buf[63] == 0x12);
     }
 
-    TEST_CASE("getSignal") {
+    TEST_CASE("getSignal")
+    {
         can_Message_t rxmsg;
 
         auto val = 0x1234;
@@ -61,7 +65,8 @@ TEST_SUITE("CAN Functions") {
         CHECK(can_getSignal<int32_t>(msg, 0, 32, true, 0.01f, 0.0f) == 1.50f);
     }
 
-    TEST_CASE("setSignal") {
+    TEST_CASE("setSignal")
+    {
         can_Message_t txmsg;
 
         can_setSignal<uint16_t>(txmsg, 0x1234, 0, 16, true, 1.0f, 0.0f);
@@ -85,7 +90,8 @@ TEST_SUITE("CAN Functions") {
         CHECK(can_getSignal<float>(txmsg, 12, 32, false, 2.0f, 1.1f) == 234981.0f);
     }
 
-    TEST_CASE("getSignal enums") {
+    TEST_CASE("getSignal enums")
+    {
         can_Message_t rxmsg;
         rxmsg.buf[0] = INPUT_MODE_MIX_CHANNELS;
         rxmsg.buf[1] = INPUT_MODE_PASSTHROUGH;
