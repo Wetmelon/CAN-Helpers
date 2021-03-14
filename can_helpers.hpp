@@ -43,6 +43,7 @@ struct can_Signal_t {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing" // Make sure to check these functions on your system
+
 template <typename T>
 constexpr T can_getSignal(const can_Message_t& msg, const uint8_t startBit, const uint8_t length, const bool isIntel) {
     uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
