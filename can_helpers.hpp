@@ -1,9 +1,10 @@
 #pragma once
 
 #include <stdint.h>
+#include <cstring>
 
 struct can_Message_t {
-    uint32_t id = 0x000; // 11-bit max is 0x7ff, 29-bit max is 0x1FFFFFFF
+    uint32_t id = 0x000;  // 11-bit max is 0x7ff, 29-bit max is 0x1FFFFFFF
 
     /**
      * Controls the IDE bit.
@@ -34,21 +35,24 @@ struct can_Message_t {
 };
 
 struct can_Signal_t {
-    const uint8_t startBit;
-    const uint8_t length;
+    const size_t startBit;
+    const size_t length;
     const bool isIntel;
     const float factor;
     const float offset;
 };
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-aliasing" // Make sure to check these functions on your system
-
 template <typename T>
-constexpr T can_getSignal(const can_Message_t& msg, const uint8_t startBit, const uint8_t length, const bool isIntel) {
-    uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
+constexpr T can_getSignal(const can_Message_t& msg, const size_t startBit, const size_t length, bool isIntel) {
+    union {
+        uint64_t tempVal;
+        uint8_t tempBuf[8];  // This is used because memcpy into tempVal generates less optimal code
+        T retVal;
+    };
 
-    uint64_t tempVal = *(reinterpret_cast<const uint64_t*>(&msg.buf[startBit / 8]));
+    const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
+
+    std::memcpy(&tempBuf, &msg.buf[startBit / 8], sizeof(tempVal));
     if (isIntel) {
         tempVal = (tempVal >> startBit % 8) & mask;
     } else {
@@ -56,46 +60,49 @@ constexpr T can_getSignal(const can_Message_t& msg, const uint8_t startBit, cons
         tempVal = (tempVal >> (64 - (startBit % 8) - length)) & mask;
     }
 
-    return *(reinterpret_cast<T*>(&tempVal));
+    return retVal;
 }
 
 template <typename T>
-constexpr void can_setSignal(can_Message_t& msg, const T& val, const uint8_t startBit, const uint8_t length, const bool isIntel) {
-    union aliastype {
-        aliastype() : valAsBits(0) {}
-        T tempVal;
+constexpr void can_setSignal(can_Message_t& msg, const T& val, const size_t startBit, const size_t length, const bool isIntel) {
+    union {
         uint64_t valAsBits;
+        T tempVal;
+    };
+
+    union {
+        uint64_t data;
+        uint8_t dataBuf[8];
     };
 
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
     const uint8_t shift = isIntel ? (startBit % 8) : (64 - startBit % 8) - length;
+    const size_t firstByte = startBit / 8;
 
-    aliastype valAlias;
-    valAlias.tempVal = val;
-    valAlias.valAsBits &= mask;
+    tempVal = val;
+    valAsBits &= mask;
 
-    uint64_t data = *(reinterpret_cast<const uint64_t*>(&msg.buf[startBit / 8]));
+    std::memcpy(dataBuf, &msg.buf[firstByte], 8);
     if (isIntel) {
         data &= ~(mask << shift);
-        data |= valAlias.valAsBits << shift;
+        data |= valAsBits << shift;
     } else {
         data = __builtin_bswap64(data);
         data &= ~(mask << shift);
-        data |= valAlias.valAsBits << shift;
+        data |= valAsBits << shift;
         data = __builtin_bswap64(data);
     }
-    *(reinterpret_cast<uint64_t*>(&msg.buf[startBit / 8])) = data;
+    std::memcpy(&msg.buf[firstByte], dataBuf, 8);
 }
-#pragma GCC diagnostic pop
 
 template <typename T>
-void can_setSignal(can_Message_t& msg, const T& val, const uint8_t startBit, const uint8_t length, const bool isIntel, const float factor, const float offset) {
+void can_setSignal(can_Message_t& msg, const T& val, const size_t startBit, const size_t length, const bool isIntel, const float factor, const float offset) {
     T scaledVal = static_cast<T>((val - offset) / factor);
     can_setSignal<T>(msg, scaledVal, startBit, length, isIntel);
 }
 
 template <typename T>
-float can_getSignal(can_Message_t msg, const uint8_t startBit, const uint8_t length, const bool isIntel, const float factor, const float offset) {
+float can_getSignal(can_Message_t msg, const size_t startBit, const size_t length, const bool isIntel, const float factor, const float offset) {
     T retVal = can_getSignal<T>(msg, startBit, length, isIntel);
     return (retVal * factor) + offset;
 }
