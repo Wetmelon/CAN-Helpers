@@ -48,19 +48,19 @@ constexpr T can_getSignal(const can_Message_t& msg, const size_t startBit, const
         uint64_t tempVal;
         uint8_t tempBuf[8];  // This is used because memcpy into tempVal generates less optimal code
         T retVal;
-    };
+    } obj = {0};
 
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
 
-    std::memcpy(&tempBuf, &msg.buf[startBit / 8], sizeof(tempVal));
+    std::memcpy(&obj.tempBuf, &msg.buf[startBit / 8], sizeof(obj.tempVal));
     if (isIntel) {
-        tempVal = (tempVal >> startBit % 8) & mask;
+        obj.tempVal = (obj.tempVal >> startBit % 8) & mask;
     } else {
-        tempVal = __builtin_bswap64(tempVal);
-        tempVal = (tempVal >> (64 - (startBit % 8) - length)) & mask;
+        obj.tempVal = __builtin_bswap64(obj.tempVal);
+        obj.tempVal = (obj.tempVal >> (64 - (startBit % 8) - length)) & mask;
     }
 
-    return retVal;
+    return obj.retVal;
 }
 
 template <typename T>
@@ -68,31 +68,31 @@ constexpr void can_setSignal(can_Message_t& msg, const T& val, const size_t star
     union {
         uint64_t valAsBits;
         T tempVal;
-    };
+    } obj_val = {0};
 
     union {
         uint64_t data;
         uint8_t dataBuf[8];
-    };
+    } obj_data = {0};
 
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
     const uint8_t shift = isIntel ? (startBit % 8) : (64 - startBit % 8) - length;
     const size_t firstByte = startBit / 8;
 
-    tempVal = val;
-    valAsBits &= mask;
+    obj_val.tempVal = val;
+    obj_val.valAsBits &= mask;
 
-    std::memcpy(dataBuf, &msg.buf[firstByte], 8);
+    std::memcpy(obj_data.dataBuf, &msg.buf[firstByte], 8);
     if (isIntel) {
-        data &= ~(mask << shift);
-        data |= valAsBits << shift;
+        obj_data.data &= ~(mask << shift);
+        obj_data.data |= obj_val.valAsBits << shift;
     } else {
-        data = __builtin_bswap64(data);
-        data &= ~(mask << shift);
-        data |= valAsBits << shift;
-        data = __builtin_bswap64(data);
+        obj_data.data = __builtin_bswap64(obj_data.data);
+        obj_data.data &= ~(mask << shift);
+        obj_data.data |= obj_val.valAsBits << shift;
+        obj_data.data = __builtin_bswap64(obj_data.data);
     }
-    std::memcpy(&msg.buf[firstByte], dataBuf, 8);
+    std::memcpy(&msg.buf[firstByte], obj_data.dataBuf, 8);
 }
 
 template <typename T>
