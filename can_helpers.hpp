@@ -44,55 +44,57 @@ struct can_Signal_t {
 
 template <typename T, size_t N>
 constexpr T can_getSignal(const uint8_t (&buf)[N], const size_t startBit, const size_t length, const bool isIntel) {
-    union {
+    union aliasType {
         uint64_t tempVal;
         uint8_t tempBuf[8];  // This is used because memcpy into tempVal generates less optimal code
         T retVal;
     };
 
+    aliasType tempUnion{0};
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
 
-    std::memcpy(tempBuf, &buf[startBit / 8], sizeof(tempVal));
+    std::memcpy(tempUnion.tempBuf, &buf[startBit / 8], sizeof(tempUnion.tempVal));
     if (isIntel) {
-        tempVal = (tempVal >> startBit % 8) & mask;
+        tempUnion.tempVal = (tempUnion.tempVal >> startBit % 8) & mask;
     } else {
-        tempVal = __builtin_bswap64(tempVal);
-        tempVal = (tempVal >> (64 - (startBit % 8) - length)) & mask;
+        tempUnion.tempVal = __builtin_bswap64(tempUnion.tempVal);
+        tempUnion.tempVal = (tempUnion.tempVal >> (64 - (startBit % 8) - length)) & mask;
     }
 
-    return retVal;
+    return tempUnion.retVal;
 }
 
 template <typename T, size_t N>
 constexpr void can_setSignal(uint8_t (&buf)[N], const T& val, const size_t startBit, const size_t length, const bool isIntel) {
-    union {
-        uint64_t valAsBits;
+    union valType {
         T tempVal;
+        uint64_t valAsBits;
     };
 
-    union {
-        uint64_t data;
+    union dataType {
         uint8_t dataBuf[8];
+        uint64_t data;
     };
 
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
     const uint8_t shift = isIntel ? (startBit % 8) : (64 - startBit % 8) - length;
     const size_t firstByte = startBit / 8;
 
-    tempVal = val;
-    valAsBits &= mask;
+    valType valUnion{val};
+    valUnion.valAsBits &= mask;
 
-    std::memcpy(dataBuf, &buf[firstByte], 8);
+    dataType dataUnion{0};
+    std::memcpy(dataUnion.dataBuf, &buf[firstByte], 8);
     if (isIntel) {
-        data &= ~(mask << shift);
-        data |= valAsBits << shift;
+        dataUnion.data &= ~(mask << shift);
+        dataUnion.data |= valUnion.valAsBits << shift;
     } else {
-        data = __builtin_bswap64(data);
-        data &= ~(mask << shift);
-        data |= valAsBits << shift;
-        data = __builtin_bswap64(data);
+        dataUnion.data = __builtin_bswap64(dataUnion.data);
+        dataUnion.data &= ~(mask << shift);
+        dataUnion.data |= valUnion.valAsBits << shift;
+        dataUnion.data = __builtin_bswap64(dataUnion.data);
     }
-    std::memcpy(&buf[firstByte], dataBuf, 8);
+    std::memcpy(&buf[firstByte], dataUnion.dataBuf, 8);
 }
 
 template <typename T>
