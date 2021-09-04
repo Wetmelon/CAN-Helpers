@@ -46,6 +46,8 @@ TEST_SUITE("CAN Functions")
         val = can_getSignal<uint16_t>(rxmsg, 0, 16, true);
         CHECK(val == 0x1234);
 
+        CHECK(can_getSignal<uint16_t>(rxmsg, 0, 12, true) == 0x234);
+
         val = can_getSignal<uint16_t>(rxmsg, 0, 16, false, 1, 0);
         CHECK(val == 0x3412);
 
@@ -86,6 +88,10 @@ TEST_SUITE("CAN Functions")
 
         can_setSignal<float>(txmsg, 234981.0f, 12, 32, false, 2.0f, 1.1f);
         CHECK(can_getSignal<float>(txmsg, 12, 32, false, 2.0f, 1.1f) == 234981.0f);
+
+        can_setSignal<int64_t>(txmsg, 0xDEADBEEFCAFEBABE, 0, 64, true);
+        CHECK(can_getSignal<int64_t>(txmsg, 0, 64, true) == 0xDEADBEEFCAFEBABE);
+
     }
 
     TEST_CASE("getSignal enums")
