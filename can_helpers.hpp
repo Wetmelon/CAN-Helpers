@@ -43,7 +43,7 @@ struct can_Signal_t {
 };
 
 template <typename T, size_t N>
-constexpr T can_getSignal(const uint8_t (&buf)[N], const size_t startBit, const size_t length, const bool isIntel) {
+T can_getSignal(const uint8_t (&buf)[N], const size_t startBit, const size_t length, const bool isIntel) {
     union aliasType {
         uint64_t tempVal;
         uint8_t tempBuf[8];  // This is used because memcpy into tempVal generates less optimal code
@@ -52,71 +52,68 @@ constexpr T can_getSignal(const uint8_t (&buf)[N], const size_t startBit, const 
 
     aliasType tempUnion{0};
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
+    const uint8_t shift = isIntel ? (startBit % 8) : (64 - startBit % 8) - length;
+    const size_t firstByte = startBit / 8;
 
-    std::memcpy(tempUnion.tempBuf, &buf[startBit / 8], sizeof(tempUnion.tempVal));
+    std::memcpy(tempUnion.tempBuf, &buf[firstByte], 8);
     if (isIntel) {
-        tempUnion.tempVal = (tempUnion.tempVal >> startBit % 8) & mask;
+        tempUnion.tempVal = (tempUnion.tempVal >> shift) & mask;
     } else {
         tempUnion.tempVal = __builtin_bswap64(tempUnion.tempVal);
-        tempUnion.tempVal = (tempUnion.tempVal >> (64 - (startBit % 8) - length)) & mask;
+        tempUnion.tempVal = (tempUnion.tempVal >> shift) & mask;
     }
 
     return tempUnion.retVal;
 }
 
 template <typename T, size_t N>
-constexpr void can_setSignal(uint8_t (&buf)[N], const T& val, const size_t startBit, const size_t length, const bool isIntel) {
-    union valType {
-        T tempVal;
-        uint64_t valAsBits;
-    };
-
-    union dataType {
-        uint8_t dataBuf[8];
-        uint64_t data;
-    };
+void can_setSignal(uint8_t (&buf)[N], const T& val, const size_t startBit, const size_t length, const bool isIntel) {
 
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
     const uint8_t shift = isIntel ? (startBit % 8) : (64 - startBit % 8) - length;
     const size_t firstByte = startBit / 8;
+    const size_t endByte = (startBit + (length - 1)) / 8;
+    const size_t numBytes = endByte - firstByte + 1;
 
-    valType valUnion{val};
-    valUnion.valAsBits &= mask;
+    uint64_t valAsBits = 0;
+    std::memcpy(&valAsBits, &val, sizeof(val));
+    valAsBits &= mask;
 
-    dataType dataUnion{0};
-    std::memcpy(dataUnion.dataBuf, &buf[firstByte], 8);
+    uint64_t data = 0;
+    std::memcpy(&data, &buf[firstByte], numBytes);
     if (isIntel) {
-        dataUnion.data &= ~(mask << shift);
-        dataUnion.data |= valUnion.valAsBits << shift;
+        data &= ~(mask << shift);
+        data |= valAsBits << shift;
     } else {
-        dataUnion.data = __builtin_bswap64(dataUnion.data);
-        dataUnion.data &= ~(mask << shift);
-        dataUnion.data |= valUnion.valAsBits << shift;
-        dataUnion.data = __builtin_bswap64(dataUnion.data);
+        data = __builtin_bswap64(data);
+        data &= ~(mask << shift);
+        data |= valAsBits << shift;
+        data = __builtin_bswap64(data);
     }
-    std::memcpy(&buf[firstByte], dataUnion.dataBuf, 8);
+    
+    std::memcpy(&buf[firstByte], &data, numBytes);
 }
 
 template <typename T>
-constexpr T can_getSignal(const can_Message_t& msg, const size_t startBit, const size_t length, const bool isIntel){
+T can_getSignal(const can_Message_t& msg, const size_t startBit, const size_t length, const bool isIntel){
     return can_getSignal<T>(msg.buf, startBit, length, isIntel);
-}
-
-template <typename T>
-constexpr void can_setSignal(can_Message_t& msg, const T& val, const size_t startBit, const size_t length, const bool isIntel){
-    return can_setSignal<T>(msg.buf, val, startBit, length, isIntel);
-}
-
-template <typename T>
-void can_setSignal(can_Message_t& msg, const T& val, const size_t startBit, const size_t length, const bool isIntel, const float factor, const float offset) {
-    T scaledVal = static_cast<T>((val - offset) / factor);
-    can_setSignal<T>(msg.buf, scaledVal, startBit, length, isIntel);
 }
 
 template <typename T>
 float can_getSignal(can_Message_t msg, const size_t startBit, const size_t length, const bool isIntel, const float factor, const float offset) {
     T retVal = can_getSignal<T>(msg.buf, startBit, length, isIntel);
     return (retVal * factor) + offset;
+}
+
+template <typename T>
+void can_setSignal(can_Message_t& msg, const T& val, const size_t startBit, const size_t length, const bool isIntel){
+    can_setSignal<T>(msg.buf, val, startBit, length, isIntel);
+}
+
+template <typename T>
+void can_setSignal(can_Message_t& msg, const T& val, const size_t startBit, const size_t length, const bool isIntel, const float factor, const float offset) {
+    T scaledVal = static_cast<T>((val - offset) / factor);
+    can_setSignal<T>(msg.buf, scaledVal, startBit, length, isIntel);
 }
 
 template <typename T>
