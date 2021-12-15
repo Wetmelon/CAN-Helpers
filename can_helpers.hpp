@@ -44,26 +44,25 @@ struct can_Signal_t {
 
 template <typename T, size_t N>
 T can_getSignal(const uint8_t (&buf)[N], const size_t startBit, const size_t length, const bool isIntel) {
-    union aliasType {
+    union {
         uint64_t tempVal;
         uint8_t tempBuf[8];  // This is used because memcpy into tempVal generates less optimal code
         T retVal;
     };
 
-    aliasType tempUnion{0};
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
     const uint8_t shift = isIntel ? (startBit % 8) : (64 - startBit % 8) - length;
     const size_t firstByte = startBit / 8;
 
-    std::memcpy(tempUnion.tempBuf, &buf[firstByte], 8);
+    std::memcpy(tempBuf, &buf[firstByte], 8);
     if (isIntel) {
-        tempUnion.tempVal = (tempUnion.tempVal >> shift) & mask;
+        tempVal = (tempVal >> shift) & mask;
     } else {
-        tempUnion.tempVal = __builtin_bswap64(tempUnion.tempVal);
-        tempUnion.tempVal = (tempUnion.tempVal >> shift) & mask;
+        tempVal = __builtin_bswap64(tempVal);
+        tempVal = (tempVal >> shift) & mask;
     }
 
-    return tempUnion.retVal;
+    return retVal;
 }
 
 template <typename T, size_t N>
@@ -75,9 +74,12 @@ void can_setSignal(uint8_t (&buf)[N], const T& val, const size_t startBit, const
     const size_t endByte = (startBit + (length - 1)) / 8;
     const size_t numBytes = endByte - firstByte + 1;
 
-    uint64_t valAsBits = 0;
-    std::memcpy(&valAsBits, &val, sizeof(val));
-    valAsBits &= mask;
+    union {
+        uint64_t valAsBits;
+        T tempVal;
+    };
+
+    tempVal = val; // Nasty union type punning
 
     uint64_t data = 0;
     std::memcpy(&data, &buf[firstByte], numBytes);
