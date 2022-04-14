@@ -1,9 +1,10 @@
 
+#include "../can_helpers.hpp"
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "doctest.h"
 
-#include "../can_helpers.hpp"
 
 enum InputMode
 {
@@ -19,87 +20,80 @@ TEST_SUITE("CAN Functions")
 {
     TEST_CASE("reverse")
     {
-        can_Message_t rxmsg;
-        rxmsg.id = 0x000;
-        rxmsg.is_extended_id = false;
-        rxmsg.len = 8;
+        uint8_t buf[64];
+        buf[0] = 0x12;
+        buf[1] = 0x34;
 
-        rxmsg.buf[0] = 0x12;
-        rxmsg.buf[1] = 0x34;
-
-        std::reverse(std::begin(rxmsg.buf), std::end(rxmsg.buf));
-        CHECK(rxmsg.buf[0] == 0x00);
-        CHECK(rxmsg.buf[62] == 0x34);
-        CHECK(rxmsg.buf[63] == 0x12);
+        std::reverse(std::begin(buf), std::end(buf));
+        CHECK(buf[0] == 0x00);
+        CHECK(buf[62] == 0x34);
+        CHECK(buf[63] == 0x12);
     }
 
     TEST_CASE("getSignal")
     {
-        can_Message_t rxmsg;
-
+        uint8_t buf[64];
         auto val = 0x1234;
-        std::memcpy(rxmsg.buf, &val, sizeof(val));
+        std::memcpy(buf, &val, sizeof(val));
 
-        val = can_getSignal<uint16_t>(rxmsg, 0, 16, true, 1, 0);
+        val = can_getSignal<uint16_t>(buf, 0, 16, true, 1, 0);
         CHECK(val == 0x1234);
 
-        val = can_getSignal<uint16_t>(rxmsg, 0, 16, true);
+        val = can_getSignal<uint16_t>(buf, 0, 16, true);
         CHECK(val == 0x1234);
 
-        CHECK(can_getSignal<uint16_t>(rxmsg, 0, 12, true) == 0x234);
+        CHECK(can_getSignal<uint16_t>(buf, 0, 12, true) == 0x234);
 
-        val = can_getSignal<uint16_t>(rxmsg, 0, 16, false, 1, 0);
+        val = can_getSignal<uint16_t>(buf, 0, 16, false, 1, 0);
         CHECK(val == 0x3412);
 
         float myFloat = 1234.6789f;
-        std::memcpy(rxmsg.buf, &myFloat, sizeof(myFloat));
-        auto floatVal = can_getSignal<float>(rxmsg, 0, 32, true, 1, 0);
+        std::memcpy(buf, &myFloat, sizeof(myFloat));
+        auto floatVal = can_getSignal<float>(buf, 0, 32, true, 1, 0);
         CHECK(floatVal == 1234.6789f);
 
-        can_Message_t msg;
-        msg.id = 0x00E;
-        msg.buf[0] = 0x96;
-        msg.buf[1] = 0x00;
-        msg.buf[2] = 0x00;
-        msg.buf[3] = 0x00;
-        CHECK(can_getSignal<int32_t>(msg, 0, 32, true, 0.01f, 0.0f) == 1.50f);
+        buf[0] = 0x96;
+        buf[1] = 0x00;
+        buf[2] = 0x00;
+        buf[3] = 0x00;
+        CHECK(can_getSignal<int32_t>(buf, 0, 32, true, 0.01f, 0.0f) == 1.50f);
     }
 
     TEST_CASE("setSignal")
     {
-        can_Message_t txmsg;
+        uint8_t buf[64];
 
-        can_setSignal<uint16_t>(txmsg, 0x1234, 0, 16, true, 1.0f, 0.0f);
-        CHECK(can_getSignal<uint16_t>(txmsg, 0, 16, true, 1.0f, 0.0f) == 0x1234);
+        can_setSignal<uint16_t>(buf, 0x1234, 0, 16, true, 1.0f, 0.0f);
+        CHECK(can_getSignal<uint16_t>(buf, 0, 16, true, 1.0f, 0.0f) == 0x1234);
 
-        can_setSignal<uint16_t>(txmsg, 0xABCD, 16, 16, true, 1.0f, 0.0f);
-        CHECK(can_getSignal<uint16_t>(txmsg, 0, 16, true, 1.0f, 0.0f) == 0x1234);
-        CHECK(can_getSignal<uint16_t>(txmsg, 16, 16, true, 1.0f, 0.0f) == 0xABCD);
+        can_setSignal<uint16_t>(buf, 0xABCD, 16, 16, true, 1.0f, 0.0f);
+        CHECK(can_getSignal<uint16_t>(buf, 0, 16, true, 1.0f, 0.0f) == 0x1234);
+        CHECK(can_getSignal<uint16_t>(buf, 16, 16, true, 1.0f, 0.0f) == 0xABCD);
 
-        can_setSignal<float>(txmsg, 1234.5678f, 32, 32, true, 1.0f, 0.0f);
-        CHECK(can_getSignal<uint16_t>(txmsg, 0, 16, true, 1.0f, 0.0f) == 0x1234);
-        CHECK(can_getSignal<uint16_t>(txmsg, 16, 16, true, 1.0f, 0.0f) == 0xABCD);
-        CHECK(can_getSignal<float>(txmsg, 32, 32, true, 1.0f, 0.0f));
+        can_setSignal<float>(buf, 1234.5678f, 32, 32, true, 1.0f, 0.0f);
+        CHECK(can_getSignal<uint16_t>(buf, 0, 16, true, 1.0f, 0.0f) == 0x1234);
+        CHECK(can_getSignal<uint16_t>(buf, 16, 16, true, 1.0f, 0.0f) == 0xABCD);
+        CHECK(can_getSignal<float>(buf, 32, 32, true, 1.0f, 0.0f));
 
-        can_setSignal<uint16_t>(txmsg, 0x1234, 0, 16, false, 1.0f, 0.0f);
-        CHECK(can_getSignal<uint16_t>(txmsg, 0, 16, false, 1.0f, 0.0f) == 0x1234);
-        CHECK(can_getSignal<uint16_t>(txmsg, 16, 16, true, 1.0f, 0.0f) == 0xABCD);
-        CHECK(can_getSignal<float>(txmsg, 32, 32, true, 1.0f, 0.0f));
+        can_setSignal<uint16_t>(buf, 0x1234, 0, 16, false, 1.0f, 0.0f);
+        CHECK(can_getSignal<uint16_t>(buf, 0, 16, false, 1.0f, 0.0f) == 0x1234);
+        CHECK(can_getSignal<uint16_t>(buf, 16, 16, true, 1.0f, 0.0f) == 0xABCD);
+        CHECK(can_getSignal<float>(buf, 32, 32, true, 1.0f, 0.0f));
 
-        can_setSignal<float>(txmsg, 234981.0f, 12, 32, false, 2.0f, 1.1f);
-        CHECK(can_getSignal<float>(txmsg, 12, 32, false, 2.0f, 1.1f) == 234981.0f);
+        can_setSignal<float>(buf, 234981.0f, 12, 32, false, 2.0f, 1.1f);
+        CHECK(can_getSignal<float>(buf, 12, 32, false, 2.0f, 1.1f) == 234981.0f);
 
-        can_setSignal<int64_t>(txmsg, 0xDEADBEEFCAFEBABE, 0, 64, true);
-        CHECK(can_getSignal<int64_t>(txmsg, 0, 64, true) == 0xDEADBEEFCAFEBABE);
+        can_setSignal<int64_t>(buf, 0xDEADBEEFCAFEBABE, 0, 64, true);
+        CHECK(can_getSignal<int64_t>(buf, 0, 64, true) == 0xDEADBEEFCAFEBABE);
 
     }
 
     TEST_CASE("getSignal enums")
     {
-        can_Message_t rxmsg;
-        rxmsg.buf[0] = INPUT_MODE_MIX_CHANNELS;
-        rxmsg.buf[1] = INPUT_MODE_PASSTHROUGH;
-        CHECK(static_cast<InputMode>(can_getSignal<InputMode>(rxmsg, 0, 8, true, 1, 0)) == INPUT_MODE_MIX_CHANNELS);
-        CHECK(static_cast<InputMode>(can_getSignal<InputMode>(rxmsg, 8, 8, true, 1, 0)) == INPUT_MODE_PASSTHROUGH);
+        uint8_t buf[64];
+        buf[0] = INPUT_MODE_MIX_CHANNELS;
+        buf[1] = INPUT_MODE_PASSTHROUGH;
+        CHECK(static_cast<InputMode>(can_getSignal<InputMode>(buf, 0, 8, true, 1, 0)) == INPUT_MODE_MIX_CHANNELS);
+        CHECK(static_cast<InputMode>(can_getSignal<InputMode>(buf, 8, 8, true, 1, 0)) == INPUT_MODE_PASSTHROUGH);
     }
 }
