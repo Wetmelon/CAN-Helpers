@@ -4,18 +4,17 @@
 #include <stdint.h>
 
 template <typename T, size_t N>
-T can_getSignal(const uint8_t (&buf)[N], const size_t startBit, const size_t length, const bool isIntel) {
+T can_getSignal(const uint8_t buf[N], const size_t startBit, const size_t length, const bool isIntel) {
     union {
         uint64_t tempVal;
-        uint8_t tempBuf[8]; // This is used because memcpy into tempVal generates less optimal code
+        uint8_t tempBuf[N]; // This is used because memcpy into tempVal generates less optimal code
         T retVal;
     };
 
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
-    const uint8_t shift = isIntel ? (startBit % 8) : (64 - startBit % 8) - length;
-    const size_t firstByte = startBit / 8;
+    const uint8_t shift = isIntel ? startBit : (64 - startBit) - length;
 
-    std::memcpy(tempBuf, &buf[firstByte], 8);
+    std::memcpy(tempBuf, buf, N);
     if (isIntel) {
         tempVal = (tempVal >> shift) & mask;
     } else {
@@ -27,13 +26,10 @@ T can_getSignal(const uint8_t (&buf)[N], const size_t startBit, const size_t len
 }
 
 template <typename T, size_t N>
-void can_setSignal(uint8_t (&buf)[N], const T& val, const size_t startBit, const size_t length, const bool isIntel) {
+void can_setSignal(uint8_t buf[N], const T& val, const size_t startBit, const size_t length, const bool isIntel) {
 
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
-    const uint8_t shift = isIntel ? (startBit % 8) : (64 - startBit % 8) - length;
-    const size_t firstByte = startBit / 8;
-    const size_t endByte = (startBit + (length - 1)) / 8;
-    const size_t numBytes = endByte - firstByte + 1;
+    const uint8_t shift = isIntel ? startBit : (64 - startBit) - length;
 
     union {
         uint64_t valAsBits;
@@ -42,8 +38,12 @@ void can_setSignal(uint8_t (&buf)[N], const T& val, const size_t startBit, const
 
     tempVal = val;
 
-    uint64_t data = 0;
-    std::memcpy(&data, &buf[firstByte], numBytes);
+    union {
+        uint64_t data;
+        uint8_t tempBuf[N];
+    };
+
+    std::memcpy(tempBuf, buf, N);
     if (isIntel) {
         data &= ~(mask << shift);
         data |= valAsBits << shift;
@@ -54,7 +54,17 @@ void can_setSignal(uint8_t (&buf)[N], const T& val, const size_t startBit, const
         data = __builtin_bswap64(data);
     }
 
-    std::memcpy(&buf[firstByte], &data, numBytes);
+    std::memcpy(buf, tempBuf, N);
+}
+
+template <typename T, size_t N>
+T can_getSignal(const uint8_t (&buf)[N], const size_t startBit, const size_t length, const bool isIntel) {
+    return can_getSignal<T, N>(&(buf[0]), startBit, length, isIntel);
+}
+
+template <typename T, size_t N>
+void can_setSignal(uint8_t (&buf)[N], const T& val, const size_t startBit, const size_t length, const bool isIntel) {
+    can_setSignal<T, N>(&(buf[0]), val, startBit, length, isIntel);
 }
 
 template <typename T, size_t N>

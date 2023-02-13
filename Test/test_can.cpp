@@ -61,7 +61,7 @@ TEST_SUITE("CAN Functions")
 
     TEST_CASE("setSignal")
     {
-        uint8_t buf[64];
+        uint8_t buf[64] = {0};
 
         can_setSignal<uint16_t>(buf, 0x1234, 0, 16, true, 1.0f, 0.0f);
         CHECK(can_getSignal<uint16_t>(buf, 0, 16, true, 1.0f, 0.0f) == 0x1234);
