@@ -12,7 +12,7 @@ T can_getSignal(const uint8_t (&buf)[8], const size_t startBit, const size_t len
     };
 
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
-    const uint64_t shift = isIntel ? startBit : (56 - startBit + (startBit % 8));
+    const uint64_t shift = isIntel ? startBit : (56 - startBit + (2 * (startBit % 8)));
 
     std::memcpy(tempBuf, buf, 8);
     if (isIntel) {
@@ -29,7 +29,7 @@ template <typename T>
 void can_setSignal(uint8_t (&buf)[8], const T& val, const size_t startBit, const size_t length, const bool isIntel) {
 
     const uint64_t mask = length < 64 ? (1ULL << length) - 1ULL : -1ULL;
-    const uint64_t shift = isIntel ? startBit : (56 - startBit + (startBit % 8));
+    const uint64_t shift = isIntel ? startBit : (56 - startBit + (2 * (startBit % 8)));
 
     union {
         uint64_t valAsBits;
