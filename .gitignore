@@ -30,3 +30,13 @@
 *.exe
 *.out
 *.app
+
+# Assembly files
+*.s
+*.asm
+
+.tup
+.cache
+.tupcache
+
+compile_commands.json
